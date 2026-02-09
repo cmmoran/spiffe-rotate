@@ -1,0 +1,56 @@
+name: bump-go-module-major
+description: Bump Go module path to /vN for major releases and rewrite imports
+inputs:
+  version:
+    description: Version string like 2.0.0
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        set -euo pipefail
+
+        version="${{ inputs.version }}"
+        major="${version%%.*}"
+        if ! [[ "$major" =~ ^[0-9]+$ ]]; then
+          echo "invalid version: $version" >&2
+          exit 1
+        fi
+
+        if (( major < 2 )); then
+          exit 0
+        fi
+
+        module=$(awk '$1 == "module" { print $2; exit }' go.mod)
+        if [[ -z "$module" ]]; then
+          echo "could not determine module path from go.mod" >&2
+          exit 1
+        fi
+
+        if [[ "$module" =~ ^(.+)/v([0-9]+)$ ]]; then
+          base="${BASH_REMATCH[1]}"
+        else
+          base="$module"
+        fi
+
+        new_module="${base}/v${major}"
+        if [[ "$module" == "$new_module" ]]; then
+          exit 0
+        fi
+
+        go mod edit -module "$new_module"
+
+        esc_base=$(printf '%s' "$base" | sed 's/[\\/&]/\\&/g')
+        esc_new=$(printf '%s' "$new_module" | sed 's/[\\/&]/\\&/g')
+
+        files=$(rg --files -g '*.go')
+        if [[ -n "$files" ]]; then
+          while IFS= read -r f; do
+            perl -pi -e "s#\"${esc_base}/#\"${esc_new}/#g" "$f"
+            perl -pi -e "s#\"${esc_base}\"#\"${esc_new}\"#g" "$f"
+          done <<< "$files"
+        fi
+
+        gofmt ./...
+        go mod tidy

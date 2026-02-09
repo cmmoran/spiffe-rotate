@@ -1,0 +1,14 @@
+project_name: spiffe-rotate
+
+release:
+  prerelease: auto
+  draft: false
+  skip_upload: true
+
+builds:
+  - skip: true
+
+archives:
+  - id: noop
+    builds: []
+    format: binary

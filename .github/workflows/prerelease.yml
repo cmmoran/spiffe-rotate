@@ -1,0 +1,68 @@
+name: prerelease
+
+on:
+  push:
+    branches:
+      - 'feat/*'
+
+permissions:
+  contents: write
+
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Govulncheck
+        run: govulncheck ./...
+
+      - name: Build
+        run: go build ./...
+
+      - name: Compute prerelease tag
+        id: pre
+        run: |
+          set -euo pipefail
+          if base_tag=$(git describe --tags --abbrev=0 --match "v*" 2>/dev/null); then
+            :
+          else
+            base_tag="v0.0.0"
+          fi
+          branch_id="${GITHUB_REF_NAME//\//-}"
+          tag="${base_tag}-${branch_id}.${GITHUB_RUN_NUMBER}"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Create prerelease tag
+        env:
+          TAG: ${{ steps.pre.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Prerelease $TAG"
+          git push origin "$TAG"
+
+      - name: Create prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.pre.outputs.tag }}
+          prerelease: true
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

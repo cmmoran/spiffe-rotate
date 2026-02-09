@@ -1,0 +1,15 @@
+*
+!*/
+!/.gitignore
+!*.go
+!go.sum
+!go.mod
+!*.tmpl
+!*.md
+!LICENSE
+!/.github/**
+!.goreleaser.yaml
+!.svu.yml
+!README.md
+AGENTS.md
+STATE.md
